@@ -268,3 +268,24 @@ def init_db():
     conn.close()
 
 
+
+# This one worked because we simplified code so much so it redeems raw data and now I can add the rest of code 
+@app.get("/view-progress/by-topic/{topic}")
+def get_progress_by_topic(topic: str):
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        try:
+            # Simple query first
+            cursor.execute(''' SELECT * FROM learning_updates WHERE topic = ?''',(topic,))
+            rows = cursor.fetchall()
+            
+           
+            # Just return raw data firtst to see what we're getting
+            return {
+                "topic":topic,
+                "raw_data": [list(row) for row in rows] 
+            }
+
+        except Exception as e:
+            raise HTTPException(status_code= 404, detail=str(e))
+    
