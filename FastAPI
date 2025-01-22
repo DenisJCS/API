@@ -1,0 +1,73 @@
+GET endpoint :)
+Responses
+Curl
+
+curl -X 'GET' \
+  'http://127.0.0.1:8001/view-progress' \
+  -H 'accept: application/json'
+Request URL
+http://127.0.0.1:8001/view-progress
+Server response
+Code	Details
+200	
+Response body
+Download
+{
+  "total_entries": 3,
+  "total_hours": 5,
+  "entries": [
+    {
+      "id": 2,
+      "topic": "Python",
+      "hours_spent": 2,
+      "difficulty_level": 3,
+      "notes": "Learning FastAPI and databases",
+      "understanding_level": 7,
+      "questions": [
+        "How do I handle errors?"
+      ],
+      "timestamp": "2025-01-21 21:16:35"
+    },
+    {
+      "id": 3,
+      "topic": "Python",
+      "hours_spent": 2,
+      "difficulty_level": 3,
+      "notes": "Learning FastAPI and databases",
+      "understanding_level": 7,
+      "questions": [
+        "How do I handle errors?"
+      ],
+      "timestamp": "2025-01-21 21:16:37"
+    },
+    {
+      "id": 4,
+      "topic": "Python",
+      "hours_spent": 1,
+      "difficulty_level": 4,
+      "notes": "Updated my understanding of FastAPI database operations",
+      "understanding_level": 8,
+      "questions": [
+        "string"
+      ],
+      "timestamp": "2025-01-21 21:17:28"
+    }
+  ]
+}
+Response headers
+ content-length: 669 
+ content-type: application/json 
+ date: Wed,22 Jan 2025 03:59:05 GMT 
+ server: uvicorn 
+Responses
+Code	Description	Links
+200	
+Successful Response
+
+Media type
+
+application/json
+Controls Accept header.
+Example Value
+Schema
+{}
