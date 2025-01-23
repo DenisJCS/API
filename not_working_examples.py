@@ -626,4 +626,27 @@ def init_db():
     conn.commit()
     conn.close()
 
+# Issue 404 cant get data , code below is simpified version of this endpoint . It worked but not as we needed
+@app.get("/analytics/learning-summary")
+def get_learning_summary():
+    """
+    Provides a comprehensive summary of your learning progress.
+    This endpoint helps you understand your learning patterns and achievements.
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
 
+            # The simpliest possible query - just selecting a single value
+            cursor.execute("SELECT 1")
+            result = cursor.fetchone()
+            
+            
+
+            return{
+                "total_entries": result[0],
+                "message": "Basic conntection test successful"
+            }
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=f"Error recieving learning summary : {str(e)}")
+    
