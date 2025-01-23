@@ -694,4 +694,75 @@ def get_learning_summary():
             }
     except Exception as e:
         raise HTTPException(status_code=404, detail=f"Error recieving learning summary : {str(e)}")
+
+
+"""New problem , need to recieve data one at the time """
+@app.get("/analytics/learning-summary")
+def get_learning_summary():
+   
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            # Get total entries count
+            cursor.execute("SELECT COUNT(*) FROM learning_updates")
+            total_entries = cursor.fetchone()[0]
+
+            # Calculate statistic per topic
+            cursor.execute("""
+                SELECT
+                    topic,
+                    COUNT(*) as session_count,
+                    SUM(hours_spent) as total_hours,
+                    AVG(hours_spent) as avg_spent ,
+                    AVG(understanding_level) as avg_understanding
+                FROM learning_updates
+                GROUP BY topic
+            """)
+            topic_stats = cursor.fetchall()
+
+            # Get all entries for the detailed list
+            cursor.execute("""
+                SELECT topic, hours_spent, understanding_level, timestamp
+                FROM learning_updates
+                ORDERED BY timestamp DESC
+            """)
+            entries = cursor.fetchall()
+
+            #Calculate topic statistic
+            topic_summary = [
+                {
+                    "topic": stat[0],
+                    "total_sessions": stat[1],
+                    "total_hours": stat[2],
+                    "average_hour_per_session": round(stat[3], 2),
+                    "average_understanding": round(stat[4], 2)
+                }
+                for stat in topic_stats
+            ]
+
+            #Format individual entries
+            formatted_entries = [
+                {
+                "topic": entry[0],
+                "hours_spent": [1],
+                "understanding_level": entry[2],
+                "timestamp": entry[3]
+                }
+                for entry in entries 
+            ]
+
+            return {
+                "summary":{
+                    "total_entries": total_entries,
+                    "total_hours": sum(entry[1] for entry in entries),
+                    "topic_studied": len(topic_summary)
+                },
+                "topic_statistic": topic_summary,
+                "recent_entries": formatted_entries
+            }
+        
+
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=f"Error recieving learning summary : {str(e)}")
     
