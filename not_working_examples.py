@@ -649,4 +649,49 @@ def get_learning_summary():
             }
     except Exception as e:
         raise HTTPException(status_code=404, detail=f"Error recieving learning summary : {str(e)}")
+
+
+
+
+"""This version worked and got data I wanted it to work with """
+@app.get("/analytics/learning-summary")
+def get_learning_summary():
+   
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            # The simpliest possible query - just selecting a single value
+            cursor.execute("SELECT COUNT(*) FROM learning_updates")
+            count_result = cursor.fetchone() #This returns a tuple like (5, )
+            total_entries = count_result[0]
+            
+            # Then, let's get a simple first of all entries
+            cursor.execute("""
+                SELECT topic, hours_spent, understanding_level, timestamp
+                FROM learning_updates
+                ORDER by timestamp DESC
+            """)
+            entries = cursor.fetchall()
+
+            # Foramt the result in a clear way
+            formatted_entries = [
+                {
+                    "topic": entry[0],
+                    "hours_spent": entry[1],
+                    "understanding_level": entry[2],
+                    "timestamp": entry[3]
+                }
+                for entry in entries
+                
+            ]
+
+
+            return {
+                "total_entries": total_entries, # Now using the correctly extracted value
+                "entries": formatted_entries
+                
+            }
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=f"Error recieving learning summary : {str(e)}")
     
