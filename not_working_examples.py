@@ -762,7 +762,82 @@ def get_learning_summary():
                 "recent_entries": formatted_entries
             }
         
-
+""" This code worked but we recieved only  1 out of 3 , so not succesfull , but this time all 200 YEAHHH """
+@app.get("/analytics/learning-summary")
+def get_learning_summary():
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # First, let's see what our data actually looks like
+            cursor.execute("SELECT * FROM learning_updates LIMIT 1")
+            sample_row = cursor.fetchone()
+            print("Sample row structure:", sample_row)  # This will help us see the column order
+            
+            # Now get all our data
+            cursor.execute("SELECT * FROM learning_updates")
+            all_data = cursor.fetchall()
+            
+            topics = {}
+            total_hours = 0
+            
+            for entry in all_data:
+                # Instead of assuming column positions, let's print what we're working with
+                print(f"Processing entry: {entry}")
+                
+                topic = str(entry[1])  # Topic name
+                
+                # We need to find the correct column for hours - let's try printing each value
+                print(f"Topic: {topic}")
+                print(f"Column values: {', '.join(str(x) for x in entry)}")
+                
+                # For now, let's skip entries where we can't convert hours to float
+                try:
+                    hours = float(entry[2])
+                    understanding = float(entry[4])
+                except (ValueError, IndexError):
+                    print(f"Skipping entry due to invalid number format: {entry}")
+                    continue
+                
+                if topic not in topics:
+                    topics[topic] = {
+                        "total_hours": 0.0,
+                        "sessions": 0,
+                        "total_understanding": 0.0
+                    }
+                
+                topics[topic]['total_hours'] += hours
+                topics[topic]['sessions'] += 1
+                topics[topic]['total_understanding'] += understanding
+                total_hours += hours
+            
+            topic_stats = [
+                {
+                    'topic': topic,
+                    'total_hours': round(stats['total_hours'], 2),
+                    'average_understanding': round(
+                        stats['total_understanding'] / stats['sessions'], 
+                        2
+                    ) if stats['sessions'] > 0 else 0
+                }
+                for topic, stats in topics.items()
+            ]
+            
+            return {
+                'summary': {
+                    'total_entries': len(all_data),
+                    'total_hours': round(total_hours, 2),
+                    'unique_topics': len(topics)
+                },
+                'topic_statistics': topic_stats
+            }
+            
+    except Exception as e:
+        print(f"Detailed error: {str(e)}")  # This will help us see exactly what went wrong
+        raise HTTPException(
+            status_code=404,
+            detail=f"Error receiving learning summary: {str(e)}"
+        )
     except Exception as e:
         raise HTTPException(status_code=404, detail=f"Error recieving learning summary : {str(e)}")
     
