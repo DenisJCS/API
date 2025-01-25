@@ -841,3 +841,91 @@ def get_learning_summary():
     except Exception as e:
         raise HTTPException(status_code=404, detail=f"Error recieving learning summary : {str(e)}")
     
+"""One more wierd"""
+@app.get("/analytics/learning-summary")
+def get_learning_summary():
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # First, let's get a simple row to understand out data
+            cursor.execute("SELECT * FROM learning_updates LIMIT 1")
+            sample = cursor.fetchone()
+            print("Sample row structure:", {sample})  # This will help us see the column order
+            
+            # Now get all our data
+            cursor.execute("""
+                SELECT id, topic, hours_spent, difficulty_level,
+                           understanding_level, notes, questions, timestamp
+                FROM learning_updates
+            """)
+            all_data = cursor.fetchall()
+            
+            # Initialize our tracking
+            topics = {}
+            total_hours = 0
+            
+            # Process each entry
+            for entry in all_data:
+                # Unpack our data with clear names
+                id, topic, hours, difficulty, understanding, notes, questions, timestamp = entry
+                
+                # Convert numeric values safely
+                try:
+                    hours = float(hours)
+                    understanding = float(understanding)
+                except (ValueError, TypeError):
+                    print(f"Warning: Invalid number format in entry {id}")
+                    continue
+                
+                # Tracking statistic for this topic
+                if topic not in topics:
+                    topics[topic] = {
+                        "total_hours": 0.0,
+                        "sessions": 0,
+                        "total_understanding": 0.0,
+                        "entries": []
+                    }
+                
+                #Update our counters
+                
+                topics[topic]['total_hours'] += hours
+                topics[topic]['sessions'] += 1
+                topics[topic]['total_understanding'] += understanding
+                topics[topic]['entries'].append({
+                    'date': timestamp,
+                    'hours': hours,
+                    'understanding': understanding
+                })
+            
+            # Create our statistic summary
+            topic_stats = []
+            for topic, stats in topics.items():
+                avg_understanding = (stats['total_understanding']/
+                                stats['sessions']) if stats['sessions'] > 0 else 0
+            topic_stats.append({
+                'topic': topic,
+                'total_hours': round(stats['total_hours'], 2),
+                'number_of sessions': stats['sessions'],
+                'average_understanding': round(avg_understanding, 2)
+            })
+
+            # Sort topics by total hours spent (most to least)
+            topic_stats.sort(key=lambda x: x['total_hours'], reverse=True)
+
+            return {
+                'summary': {
+                    'total_entries': len(all_data),
+                    'total_hours' : round('total_hours',2),
+                    'unique_topic': len(topics),
+                    'most_studied_topic': topic_stats[0]['topic'] if topic_stats else None
+                },
+                'topic_statistic': topic_stats
+            }                                  
+                                  
+    except Exception as e:
+        print(f"Detailed error: {str(e)}")  # This will help us see exactly what went wrong
+        raise HTTPException(
+            status_code=404,
+            detail=f"Error receiving learning summary: {str(e)}"
+        )
