@@ -1,5 +1,3 @@
-
-
 from fastapi.testclient import TestClient
 from learning_api import app # Importing our main FastAPI app
 import pytest
@@ -22,6 +20,35 @@ def test_add_learning_progress():
     response = client.post("/add-progress", json=test_data) 
     assert response.status_code == 200 # Check if request was successful
     assert "Progress updated successfully!" in response.json()["message"]
+
+# Test view-progress endpoint
+def test_view_progress():
+    """Test the endpoint that shows all learning progress"""
+    #first, let's get all progress entries
+    response = client.get("view-progress")
+    
+    #Basic checks
+    assert response.status_code == 200 #check if request succeeded
+
+    #Get the response data
+    data = response.json()
+
+    # Check if response has all required fields
+    assert "total_entries" in data, "Response should have total_entries field"
+    assert "total_hours" in data, "Response should have total_hours field"
+    assert "entries" in data, "Response should have entries field"
+
+    #Check data types
+    assert isinstance(data["entries"], list), "Entries should be a list"
+    assert isinstance(data["total_hours"], (int,float)), "Total hours should be a number "
+    assert isinstance(data["total_entries"], int), "Total entries should be integer"
+
+    # If there are entries check first entry structured
+    if data["entries"]:
+        first_entry = data["entries"][0]
+        assert "topic" in first_entry, "Entry should have topic"
+        assert "hours_spent" in first_entry, "Entry should have hours_spent"
+        assert "understanding_level" in first_entry, "Entry should have understanding_level"
 
 Intensive2 % python -m pytest test_api.py -v
 ========================================== test session starts ==========================================
