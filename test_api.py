@@ -50,20 +50,54 @@ def test_view_progress():
         assert "hours_spent" in first_entry, "Entry should have hours_spent"
         assert "understanding_level" in first_entry, "Entry should have understanding_level"
 
-Intensive2 % python -m pytest test_api.py -v
-========================================== test session starts ==========================================
-platform darwin -- Python 3.12.3, pytest-8.3.4, pluggy-1.5.0 -- /Users/denis_jcs/Documents/Intensive2/venv/bin/python
-cachedir: .pytest_cache
+def test_update__progress():
+    """The updating an existing learning entry"""
+    # Frist creat an entry
+    initial_data = {
+        "topic": "Python",
+        "hours_spent": 2.0,
+        "difficulty_level": 3,
+        "notes": "Initial learning session",
+        "understanding_level": 7,
+        "questions": []
+    }
+    create_response = client.post("/add-progress", json=initial_data)
+    entry_id = create_response.json()["data"]["id"]
+
+    # Nos update some fields
+    update_data = {
+        "hours_spent": 3.0,
+        "notes": "Updated learning session notes"
+    }
+
+    response = client.put(f"/update-progress/{entry_id}", json=update_data)
+    assert response.status_code == 200
+
+    #Check if only specified fields were updates
+    updated_data = response.json()["data"]
+    assert updated_data["hours_spent"] == 3.0
+    assert updated_data["notes"] == "Updated learning session notes"
+    assert updated_data["topic"] == "Python" # Should remain unchange
+
+
+% pytest
+============================================ test session starts ============================================
+platform darwin -- Python 3.12.3, pytest-8.3.4, pluggy-1.5.0
 rootdir: /Users/denis_jcs/Documents/Intensive2
 plugins: anyio-4.8.0
-collected 1 item                                                                                        
+collected 3 items                                                                                           
 
-test_api.py::test_add_learning_progress PASSED                                                    [100%]
+test_api.py ...                                                                                       [100%]
 
-=========================================== warnings summary ============================================
+============================================= warnings summary ==============================================
 test_api.py::test_add_learning_progress
-  /Users/denis_jcs/Documents/Intensive2/learning_api.py:128: PydanticDeprecatedSince20: The `dict` method is deprecated; use `model_dump` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.10/migration/
-    "data": update.dict()
+test_api.py::test_update__progress
+  /Users/denis_jcs/Documents/Intensive2/learning_api.py:130: PydanticDeprecatedSince20: The `dict` method is deprecated; use `model_dump` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.10/migration/
+    "data": {**update.dict(), "id": new_id}
+
+test_api.py::test_update__progress
+  /Users/denis_jcs/Documents/Intensive2/learning_api.py:149: PydanticDeprecatedSince20: The `dict` method is deprecated; use `model_dump` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.10/migration/
+    update_dict = update.dict(exclude_unset=True)
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-===================================== 1 passed, 1 warning in 0.22s ======================================
+======================================= 3 passed, 3 warnings in 0.19s =======================================
