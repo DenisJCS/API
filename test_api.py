@@ -79,6 +79,65 @@ def test_update__progress():
     assert updated_data["notes"] == "Updated learning session notes"
     assert updated_data["topic"] == "Python" # Should remain unchange
 
+def test_delete_progress():
+    """Test delete a learning entry"""
+    #First create an entry to delete
+    initial_data = {
+        'topic':'Python',
+        'hours_spent': 2.0,
+        'difficulty_level': 3,
+        'notes': 'Testing delete functionality',
+        'understanding_level' : 7,
+        'questions': []
+}
+    
+    # Add the entry and get its ID
+    create_response = client.post('/add-progress', json=initial_data)
+    entry_id = create_response.json()['data']['id']
+
+    # Try to delete the entry
+    delete_response = client.delete(f'/delete-progress/{entry_id}')
+    assert delete_response.status_code == 200
+    assert f'Entry {entry_id} deleted successfully !' in delete_response.json()['message']
+
+    # Verify entry is gone by trying view it
+    verify_response = client.get(f'/view-progress/{entry_id}')
+    assert verify_response.status_code == 404 #Should return not found
+
+
+
+
+def test_simple_lifecycle():
+    '''Test an entry's complete journey in our system'''
+
+    # Step 1 : Create a new entry
+    new_entry = {
+        'topc': 'Python',
+        'hours_spent': 2.0,
+        'difficulty_level': 3,
+        'notes': 'First test note',
+        'questions': []
+    }
+
+    # Save it and get its ID number
+    response = client.post('/add-progress', json=new_entry)
+    entry_id = response.json()['data']['id']
+
+    # Step 2: Check if it's saved correctly
+    check_response = client.get('/view-progress')
+    assert check_response.status_code == 200
+
+    # Step 3: Change something
+    changes = {
+        'hours_spent' : 3.0,
+        'notes' : 'Change test note'
+    }
+    client.put(f'/update-progress/{entry_id}', json=changes)
+
+    # Step 4: Delete it
+    delete_response = client.delete(f'/delete-progress/{entry_id}')
+    assert f'Entry {entry_id} deleted successfully !' in delete_response.json()['message'] 
+    
 
 % pytest
 ============================================ test session starts ============================================
