@@ -87,12 +87,13 @@ def test_delete_progress():
         'hours_spent': 2.0,
         'difficulty_level': 3,
         'notes': 'Testing delete functionality',
-        'understanding_level' : 7,
+        'understanding_level': 7,
         'questions': []
 }
     
     # Add the entry and get its ID
     create_response = client.post('/add-progress', json=initial_data)
+    assert create_response.status_code == 200
     entry_id = create_response.json()['data']['id']
 
     # Try to delete the entry
@@ -101,9 +102,10 @@ def test_delete_progress():
     assert f'Entry {entry_id} deleted successfully !' in delete_response.json()['message']
 
     # Verify entry is gone by trying view it
-    verify_response = client.get(f'/view-progress/{entry_id}')
-    assert verify_response.status_code == 404 #Should return not found
-
+    view_all_response = client.get('/view-progress')
+    entries = view_all_response.json()['entries']
+    deleted_entry = next((entry for entry in entries if entry['id'] == entry_id), None)
+    assert deleted_entry is None, 'Entry shoud not exist after deletion'
 
 
 
@@ -112,10 +114,11 @@ def test_simple_lifecycle():
 
     # Step 1 : Create a new entry
     new_entry = {
-        'topc': 'Python',
+        'topic': 'Python',
         'hours_spent': 2.0,
         'difficulty_level': 3,
         'notes': 'First test note',
+        'understanding_level': 7,
         'questions': []
     }
 
@@ -137,26 +140,18 @@ def test_simple_lifecycle():
     # Step 4: Delete it
     delete_response = client.delete(f'/delete-progress/{entry_id}')
     assert f'Entry {entry_id} deleted successfully !' in delete_response.json()['message'] 
-    
 
-% pytest
-============================================ test session starts ============================================
+
+
+
+
+pytest
+=========================================== test session starts ============================================
 platform darwin -- Python 3.12.3, pytest-8.3.4, pluggy-1.5.0
 rootdir: /Users/denis_jcs/Documents/Intensive2
 plugins: anyio-4.8.0
-collected 3 items                                                                                           
+collected 5 items                                                                                          
 
-test_api.py ...                                                                                       [100%]
+test_api.py .....                                                                                    [100%]
 
-============================================= warnings summary ==============================================
-test_api.py::test_add_learning_progress
-test_api.py::test_update__progress
-  /Users/denis_jcs/Documents/Intensive2/learning_api.py:130: PydanticDeprecatedSince20: The `dict` method is deprecated; use `model_dump` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.10/migration/
-    "data": {**update.dict(), "id": new_id}
-
-test_api.py::test_update__progress
-  /Users/denis_jcs/Documents/Intensive2/learning_api.py:149: PydanticDeprecatedSince20: The `dict` method is deprecated; use `model_dump` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.10/migration/
-    update_dict = update.dict(exclude_unset=True)
-
--- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-======================================= 3 passed, 3 warnings in 0.19s =======================================
+============================================ 5 passed in 0.28s =============================================
