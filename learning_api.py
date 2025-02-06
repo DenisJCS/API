@@ -9,8 +9,25 @@ from contextlib import contextmanager
 import json # We will need this to handle lists in SQLite
 
 # 2 App initialization 
-app = FastAPI()
+app = FastAPI(
+    title= "Learning Progress Tracker",
+    description="""
+    A comprehensive API for tracking your programming learning journey.
 
+    Key Features :
+    . Track time spent learning different progamming topic
+    . Record difficulty level and understanding metrics
+    . Store notes and questions from each learning session
+    . Analyze progess over time with detailed analytics
+
+    This API is a part of learning journey to become a professional Python developer.
+    """,
+    version = "1.0.0",
+    openapi_tags = [{
+        "name": "Learning Progress",
+        "description": "Operations for tracking and learning sessions"     
+        }]
+)
 
 # 3 Database connection manager
 
@@ -75,8 +92,36 @@ init_db()
 
 # 6 ENDPOINTS Update POST endpoint to use database
 
-@app.get("/view-progress")
+@app.get("/view-progress", tags=["Learning Progress"])
 def view_all_progress() -> Dict[str, Any]:
+    """
+    Retrive all learning progress entries
+
+    Returns a comprehensive view of all learning sessions, including:
+    - Total number of entries
+    - Total hours spent learning
+    -Detailed list of all learning sessions
+
+    Example Response:
+    '''json
+    {
+        "total_entries": 10,
+        "total_hours": 25.5,
+        "entries": [
+            {
+                "id": 1,
+                "topic": "Python",
+                "hours_spent": 2.5,
+                "difficulty_level": 3,
+                "notes": "API Documentation",
+                "understanding_level": 8,
+                "questions": [],
+                "timestamp": "2025-02-05 10:00:00"
+            }
+        ]
+    }
+    '''
+    """
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute('SELECT * FROM learning_updates')
@@ -103,8 +148,42 @@ def view_all_progress() -> Dict[str, Any]:
     
 
 
-@app.post("/add-progress")
-def add_learning_progress(update: LearningUpdate):
+@app.post("/add-progress", tags=["Learning Progress"])
+async def add_learning_progress(update: LearningUpdate):
+    
+    """
+    Record a new learning session with detailed metric.
+    
+    This endpoint allows you to log you learning progress with comprehensie detail
+    about what you studied and how effective the session was.
+
+    Parameters:
+    - **topic**: The main subject studied (e.g., Python, FastAPI, Algorithms)
+    - **hour_spent**: Number of hours dedicated to learning (0-24)
+    - **difficulty_level**: How challenging the material was (1-5)
+    - **notes**: Detailed notes about what you learned
+    - **understanding_level**: How well you understood the material (1-10)
+    - **questions**: Any questions that came up during learning
+
+    Returns:
+    - A JSON object containing:
+        - A success message
+        - The complete entry data including the assigned ID
+    
+        Example:
+        ''' pyton
+        {
+             "topic": "Python",
+             "hours_spent": 2.5,
+             "difficulty_level": 3,
+             "notes": "Learned about FastAPI documentation",
+             "understanding_level": 8,
+             "questions": ["How to handle versioning?"]
+        
+        }
+        '''
+  
+      """
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
@@ -134,8 +213,19 @@ def add_learning_progress(update: LearningUpdate):
         raise HTTPException(status_code=400, detail=str(e))
     
 
-@app.put("/update-progress/{entry_id}")
+@app.put("/update-progress/{entry_id}", tags=["Learning Progress"])
 def update_learning_progress(entry_id: int, update: LearningUpdatePatch):
+    """
+    Update an existing learning entry
+
+    Parameters:
+    - entry_id: ID of the entry to update
+    - update: Fields to modify (all fields optional)
+    
+    Returns:
+    - Success message
+    - Update entry data
+    """
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
@@ -187,8 +277,18 @@ def update_learning_progress(entry_id: int, update: LearningUpdatePatch):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
     
-@app.delete("/delete-progress/{entry_id}")
+@app.delete("/delete-progress/{entry_id}", tags=["Learning Progress"])
 def delete_learning_progress(entry_id: int):
+    """
+    Delete a learning entry.
+
+    Parameters:
+    - entry_id: ID of the entry to delete
+
+    Returns:
+    - Success message
+    - ID of the deleted entry
+    """
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
@@ -211,14 +311,33 @@ def delete_learning_progress(entry_id: int):
         raise HTTPException(status_code=404, detail=str(e))
     
 
-@app.get("/view-progress/by-topic/{topic}")
+@app.get("/view-progress/by-topic/{topic}", tags=["Learning Progress"])
 def get_progress_by_topic(topic: str):
+    """
+    Get the 5 most recent learning sessions for a specific topic.
+
+    Parameters:
+    - topic: The learning topic to filter by ( e.g., Python, FastAPI)
+
+    Returns:
+    - Recent learning entries for the topic
+    - Total hours spent on this topic
+    - Average difficulty level
+    - Latest 5 entries with full details
+    """
     with get_db_connection() as conn:
         cursor = conn.cursor()
         try:
-            cursor.execute('SELECT * FROM learning_updates WHERE topic = ?', (topic,))
+            #Add order by timestamp DESC to get most recent entries first
+            cursor.execute('''
+                SELECT * FROM learning_updates
+                WHERE topic = ?
+                ORDER BY timestamp DESC
+                LIMIT 5
+            ''', (topic,)) # Limit to most recent 5 entries
             rows = cursor.fetchall()
-            
+
+
             if not rows:
                 raise HTTPException(status_code=404, detail=f"No entries found for topic: {topic}")
             
@@ -243,18 +362,29 @@ def get_progress_by_topic(topic: str):
 
             return {
                 "topic": topic,
-                "total_entries": len(entries),
-                "total_hours": total_hours,
+                "recent_entries": len(entries),
+                "total_hours": round(total_hours,2),
                 "average_difficulty": round(total_difficulty / len(entries), 2),
-                "entries": entries
+                "latest_entries": entries # Now showing the most recent entries
             }
             
         except Exception as e:
             raise HTTPException(status_code=400, detail=str(e))
         
 
-@app.get("/analytics/learning-summary")
+@app.get("/analytics/learning-summary", tags=["Learning Progress"])
 def get_learning_summary():
+    """
+    Generate a comprehensive summary of all learning activities.
+
+    Returns:
+    - Overall summary ( total entries, hours, unique topics)
+    - Pep-topic statistics including:
+        - Total hours per topic
+        - Number of sessions
+        - Average understanding level
+        - Most studied topic
+    """
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
