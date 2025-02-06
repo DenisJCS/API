@@ -1,12 +1,114 @@
 # 1 Imports
-from fastapi import FastAPI, HTTPException
-from datetime import datetime
+from fastapi import FastAPI, HTTPException, Depends, status 
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+from datetime import datetime, timedelta
 from pydantic import BaseModel, Field
-from typing import List, Optional,Dict, Any
+from typing import List, Optional,Dict, Any, Union
 from enum import Enum
 import sqlite3 # This is our databese engine
 from contextlib import contextmanager
 import json # We will need this to handle lists in SQLite
+
+# Security configurations
+
+SECRET_KEY = "your-secret-key-keep-it-safe" # In production, this should be seciue
+ALGORITHM = "HS256" # The algorithm used to sign in the JWB tokens
+ACCESS_TOKEN_EXPIRE_MINUTES = 30 # How long tokens remains active
+
+# Password hashing setup
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto") # This handles password hashing
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token") # This handles token authentication 
+
+# For demostration, we'll use a simple dictionary as our user dabase
+# In real application, this would be in a proper database
+
+# Models for user managment
+class Token(BaseModel):
+    """Token model for authentication responses"""
+    access_token: str
+    token_type: str
+
+class TokenData(BaseModel):
+    """Dara structure for token payload"""
+    username: Optional[str] = None
+
+
+# User model for authentication
+class User(BaseModel):
+    username: str
+    email: Optional[str] = None
+    full_name: Optional[str] = None
+    disabled : Optional[bool] = None
+
+class UserInDB(User):
+    """User model as stored in database, including hashed password"""
+    hashed_password: str
+
+# Test user database (in production, this would be a real database)
+fake_users_db = {
+    "denis": {
+        "username": "denis",
+        "full_name": "Denis Developer",
+        "email": "denis@example.com",
+        "hashed_password": pwd_context.hash("testpassword123"),
+        "disabled": False 
+    }
+}
+
+# Authentication helper functions
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Verify if a plain password matches its hashed version"""
+    return pwd_context.verify(plain_password, hashed_password)
+
+def get_user(db: dict, username: str) -> Optional[UserInDB]:
+    """Retrive a user from the database"""
+    if username in db:
+        user_dict = db[username]
+        return UserInDB(**user_dict)
+    return None
+
+def authenticate_user(db: dict, username: str, password: str) -> Union[bool, UserInDB]:
+    """Authenticate a user's credentials"""
+    user = get_user(db, username)
+    if not user:
+        return False
+    if not verify_password(password, user.hashed_password):
+        return False
+    return user
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    """Generate a new JWT access token"""
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=15)
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
+    """Validate token and return current user"""
+    credentials_exception = HTTPException(
+        status_code = status.HTTP_401_UNAUTHORIZED,
+        detail = "Could not validate credential",
+        headers = {"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+        token_data = TokenData(username=username)
+    except JWTError:
+        raise credentials_exception
+    
+    user = get_user(fake_users_db, username=token_data.username)
+    if user is None:
+        raise credentials_exception
+    return user
+
 
 # 2 App initialization 
 app = FastAPI(
@@ -28,6 +130,24 @@ app = FastAPI(
         "description": "Operations for tracking and learning sessions"     
         }]
 )
+
+
+# Login endpoint
+@app.post("/token", response_model = Token)
+async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+    """Endpoint for user authentication and token generation"""
+    user = authenticate_user(fake_users_db, form_data.username, form_data.password )
+    if not user:
+        raise HTTPException(
+            status_code = status.HTTP_401_UNAUTHORIZED,
+            detail = "Incorrect username or password",
+            headers = {"WWW-Authenticate": "Bearer"},
+        )
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.username}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
 
 # 3 Database connection manager
 
@@ -149,10 +269,12 @@ def view_all_progress() -> Dict[str, Any]:
 
 
 @app.post("/add-progress", tags=["Learning Progress"])
-async def add_learning_progress(update: LearningUpdate):
-    
-    """
-    Record a new learning session with detailed metric.
+async def add_learning_progress(
+    update: LearningUpdate,
+    current_user: User = Depends(get_current_user) # Add this line
+) :
+
+    """Record a new learning session with (requires authentication)
     
     This endpoint allows you to log you learning progress with comprehensie detail
     about what you studied and how effective the session was.
