@@ -10,6 +10,7 @@ from enum import Enum
 import sqlite3 # This is our databese engine
 from contextlib import contextmanager
 import json # We will need this to handle lists in SQLite
+from sqlite3 import IntegrityError
 
 # Security configurations
 
@@ -209,8 +210,31 @@ def init_db():
 # Call init.db at startup
 init_db()
 
+# User tabled 
+def init_user_db():
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXIST users(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,           
+                email TEXT UNIQUE,
+                full_name TEXT,
+                hashed_password TEXT NOT NULL,
+                disabled BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )     
+        ''')
+        conn.commit()
 
 # 6 ENDPOINTS Update POST endpoint to use database
+@app.on_event("startup")
+async def startup_event():
+    init_db()
+    init_user_db()
+
+
+
 
 @app.get("/view-progress", tags=["Learning Progress"])
 def view_all_progress() -> Dict[str, Any]:
