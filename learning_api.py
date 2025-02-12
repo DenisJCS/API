@@ -65,17 +65,25 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def get_user(db: dict, username: str) -> Optional[UserInDB]:
     """Retrive a user from the database"""
-    if username in db:
-        user_dict = db[username]
-        return UserInDB(**user_dict)
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM users WHERE username = ?', (username)),
+        user = cursor.fetchone()
+        if username in db:
+            return UserInDB(
+                username = user[1],
+                email = user[2],
+                full_name = user[3],
+                hashed_password = user[4],
+                disabled = user[5]
+            )
     return None
 
-def authenticate_user(db: dict, username: str, password: str) -> Union[bool, UserInDB]:
+
+def authenticate_user(username: str, password: str) -> Union[bool, UserInDB]:
     """Authenticate a user's credentials"""
-    user = get_user(db, username)
-    if not user:
-        return False
-    if not verify_password(password, user.hashed_password):
+    user = get_user(username)
+    if not user or not verify_password(password, user.hashed_password):
         return False
     return user
 
@@ -196,13 +204,15 @@ def init_db():
         cursor.execute('''
                        CREATE TABLE IF NOT EXISTS learning_updates(
                             id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            user_id INTEGER NOT NULL,
                             topic TEXT NOT NULL, 
                             hours_spent REAL NOT NULL,
                             difficulty_level INTEGER NOT NULL,
                             notes TEXT NOT NULL,
                             understanding_level INTEGER NOT NULL,
                             questions TEXT,
-                            timestamp TEXT NOT NULL
+                            timestamp TEXT NOT NULL,
+                            FOREIGN KEY (user_id) REFERENCES user(id)
                        )
                 ''')
         conn.commit()
@@ -215,7 +225,7 @@ def init_user_db():
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute('''
-            CREATE TABLE IF NOT EXIST users(
+            CREATE TABLE IF NOT EXISTS users(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT UNIQUE NOT NULL,           
                 email TEXT UNIQUE,
