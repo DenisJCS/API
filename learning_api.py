@@ -145,7 +145,7 @@ app = FastAPI(
 @app.post("/token", response_model = Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
     """Endpoint for user authentication and token generation"""
-    user = authenticate_user(fake_users_db, form_data.username, form_data.password )
+    user = authenticate_user(form_data.username, form_data.password )
     if not user:
         raise HTTPException(
             status_code = status.HTTP_401_UNAUTHORIZED,
@@ -157,6 +157,32 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         data={"sub": user.username}, expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
+
+
+@app.post("/register", response_model=User)
+async def register_user(username:str, password: str, email: Optional[str] = None, full_name: Optional[str] = None ):
+    """Register a new user"""
+    with get_db_connection as conn:
+        cursor = conn.cursor()
+        try:
+            hashed_password = pwd_context.hash(password)
+            cursor.execute('''
+                INSERT INTO users (username, email, full_name, hashed_password)
+                VALUES (?, ?, ?, ?)
+                RETURNING id, username, email, full_name
+            ''', (username, email, full_name, hashed_password))
+            user_data = cursor.fetchone()
+            conn.commit()
+            return {
+                "username": user_data[1],
+                "email": user_data[2],
+                "full_name": user_data[3]
+            }
+        except IntegrityError:
+            raise HTTPException(
+                status_code = 400,
+                detail = "Username already exists"
+            )
 
 # 3 Database connection manager
 
