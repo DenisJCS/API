@@ -63,13 +63,13 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify if a plain password matches its hashed version"""
     return pwd_context.verify(plain_password, hashed_password)
 
-def get_user(db: dict, username: str) -> Optional[UserInDB]:
+def get_user(username: str) -> Optional[UserInDB]:
     """Retrive a user from the database"""
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute('SELECT * FROM users WHERE username = ?', (username)),
         user = cursor.fetchone()
-        if username in db:
+        if user:
             return UserInDB(
                 username = user[1],
                 email = user[2],
@@ -273,7 +273,7 @@ async def startup_event():
 
 
 @app.get("/view-progress", tags=["Learning Progress"])
-def view_all_progress() -> Dict[str, Any]:
+def view_all_progress(current_user: User = Depends(get_current_user)) -> Dict[str, Any]:
     """
     Retrive all learning progress entries
 
@@ -304,9 +304,11 @@ def view_all_progress() -> Dict[str, Any]:
     """
     with get_db_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute('SELECT * FROM learning_updates')
-        rows = cursor.fetchall()
-        entries = []
+        # Get user_id first
+        cursor.execute('SELECT id FROM user WHERE username = ?', (current_user.username)) 
+        user_id = cursor.fetchone[0]
+        # The get only this user's entries
+        cursor.execute('SELECT * FROM learning_updates WHERE user_id = ?', (user_id))
         for row in rows:
             entry = {
                 "id": row[0],
@@ -369,13 +371,18 @@ async def add_learning_progress(
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
+            # First get user's ID
+            cursor.execute('SELECT id FROM users WHERE username = ?', (current_user.username,))
+            user_id = cursor.fetchone()[0]
+            
             questions_json = json.dumps(update.questions)
             cursor.execute('''
                 INSERT INTO learning_updates
-                (topic, hours_spent, difficulty_level, notes, understanding_level, questions, timestamp)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                (user_id ,topic, hours_spent, difficulty_level, notes, understanding_level, questions, timestamp)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 RETURNING id
             ''', (
+                user_id,
                 update.topic,
                 update.hours_spent,
                 update.difficulty_level,
