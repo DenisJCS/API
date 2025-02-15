@@ -67,7 +67,7 @@ def get_user(username: str) -> Optional[UserInDB]:
     """Retrive a user from the database"""
     with get_db_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute('SELECT * FROM users WHERE username = ?', (username)),
+        cursor.execute('SELECT * FROM users WHERE username = ?', (username,))
         user = cursor.fetchone()
         if user:
             return UserInDB(
@@ -113,7 +113,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
     except JWTError:
         raise credentials_exception
     
-    user = get_user(fake_users_db, username=token_data.username)
+    user = get_user(username=token_data.username)
     if user is None:
         raise credentials_exception
     return user
@@ -162,7 +162,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 @app.post("/register", response_model=User)
 async def register_user(username:str, password: str, email: Optional[str] = None, full_name: Optional[str] = None ):
     """Register a new user"""
-    with get_db_connection as conn:
+    with get_db_connection() as conn:
         cursor = conn.cursor()
         try:
             hashed_password = pwd_context.hash(password)
@@ -305,10 +305,12 @@ def view_all_progress(current_user: User = Depends(get_current_user)) -> Dict[st
     with get_db_connection() as conn:
         cursor = conn.cursor()
         # Get user_id first
-        cursor.execute('SELECT id FROM user WHERE username = ?', (current_user.username)) 
-        user_id = cursor.fetchone[0]
+        cursor.execute('SELECT id FROM users WHERE username = ?', (current_user.username,)) 
+        user_id = cursor.fetchone()[0]
         # The get only this user's entries
-        cursor.execute('SELECT * FROM learning_updates WHERE user_id = ?', (user_id))
+        cursor.execute('SELECT * FROM learning_updates WHERE user_id = ?', (user_id,))
+        rows = cursor.fetchall()
+        entries = []
         for row in rows:
             entry = {
                 "id": row[0],
@@ -403,7 +405,12 @@ async def add_learning_progress(
     
 
 @app.put("/update-progress/{entry_id}", tags=["Learning Progress"])
-def update_learning_progress(entry_id: int, update: LearningUpdatePatch):
+def update_learning_progress(
+    entry_id: int,
+    update: LearningUpdatePatch,
+    current_user: User = Depends(get_current_user)
+
+):
     """
     Update an existing learning entry
 
@@ -420,7 +427,9 @@ def update_learning_progress(entry_id: int, update: LearningUpdatePatch):
             cursor = conn.cursor()
 
             # First check if entry exists
-            cursor.execute('SELECT * FROM learning_updates WHERE id = ?', (entry_id,))
+            cursor.execute(
+                'SELECT * FROM learning_updates WHERE id = ? AND user_id = (SELECT id FROM users WHERE username = ?)',
+                (entry_id, current_user.username))
             if not cursor.fetchone():
                 raise HTTPException(status_code=404, detail="Entry not found")
             
@@ -661,24 +670,25 @@ def get_learning_summary():
         )
 # This function will set up our database
 def init_db():
-    conn = sqlite3.connect('learning_progress.db')
-    cursor = conn.cursor()
-
+    with get_db_connection() as conn:
+        cursor = conn.cursor() 
     #Created a table to store our learning updates
-    cursor.execute('''
-                   CREATE TABLE IF NOT EXISTS learning_updates (
-                   id INTEGER PRIMARY KEY AUTOINCREMENT,
-                   topic   TEXT NOT NULL,
-                   hours_spent REAL NOT NULL,
-                   difficulty_level INTEGER NOT NULL,
-                   notes TEXT NOT NULL,
-                   understanding_level INTEGER NOT NULL,
-                   questions TEXT,
-                   timestamp TEXT NOT NULL
-                   )
-            ''')
+        cursor.execute('''
+                CREATE TABLE IF NOT EXISTS learning_updates (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    topic   TEXT NOT NULL,
+                    hours_spent REAL NOT NULL,
+                    difficulty_level INTEGER NOT NULL,
+                    notes TEXT NOT NULL,
+                    understanding_level INTEGER NOT NULL,
+                    questions TEXT,
+                    timestamp TEXT NOT NULL,
+                    FOREIGN KEY (user_id) REFERENCES users(id)
+                )
+        ''')
     
-    conn.commit()
-    conn.close()
+        conn.commit()
+    
 
 
