@@ -25,7 +25,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 # Define our models
 class Token(BaseModel):
     access_token : str
-    token_type: Optional[bool] = None
+    token_type: str
 
 class User(BaseModel):
     username : str
@@ -54,4 +54,42 @@ def get_user(username: str):
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     """Create a new JWT token"""
     to_encode = data.copy()
+    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=15))
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+#Endpoints
+@app.post("/token", response_model=Token)
+async def login(from_data: OAuth2PasswordRequestForm = Depends()):
+    """Test endpoint for logging in and getting a token"""
+    # Get user from our test database
+    user = get_user(from_data.username)
+    if not user:
+        raise HTTPException(status_code=400, detail="Incorect username or password")
     
+    #Verify password
+    if not verify_password(from_data.password, user["hashed_password"]):
+        raise HTTPException(status_code=400, detail="Incorrect username or password")
+    
+    #Create access token
+    access_token = create_access_token(
+        data={"sub": user["username"]},
+        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+
+    )
+
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.get("/test-auth")
+async def test_authentication(token, str = Depends(oauth2_scheme)):
+    """Test endpoint that requires authentication"""
+    try:
+        #Verify token
+        playload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = playload.get("sub")
+        if username is None:
+            raise HTTPException(status_code=401, detail="Invalid token")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    return {"message": "Authentication successful!", "username": username}
