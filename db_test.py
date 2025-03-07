@@ -102,7 +102,34 @@ async def add_learning_progress(update: LearningUpdate):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-                       
+@app.get("/view-progress")
+async def view_progress():
+    """Retrieve all learning progress entries"""
+    with get_db_connection as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM learning_updates')
+        rows = cursor.fetchall()
+
+        entries = []
+        for row in rows:
+            # Convert SQLite row to dictionary
+            entry = {
+                "id": row[0],
+                "topic": row[1],
+                "hours_spent": row[2],
+                "difficulty_level": row[3],
+                "notes": row[4],
+                "understanding_level": row[5],
+                "questions": json.loads(row[6]) if row[6] else [],
+                "timestamp": row[7]
+            }
+            entries.append(entry)
+
+        return {
+            "total_entries": len(entries),
+            "total_hours": sum(entry["hours_spent"] for entry in entries),
+            "entries": entries 
+        }       
                        
                        
                        
