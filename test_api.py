@@ -140,18 +140,4 @@ def test_simple_lifecycle():
     # Step 4: Delete it
     delete_response = client.delete(f'/delete-progress/{entry_id}')
     assert f'Entry {entry_id} deleted successfully !' in delete_response.json()['message'] 
-
-
-
-
-
-pytest
-=========================================== test session starts ============================================
-platform darwin -- Python 3.12.3, pytest-8.3.4, pluggy-1.5.0
-rootdir: /Users/denis_jcs/Documents/Intensive2
-plugins: anyio-4.8.0
-collected 5 items                                                                                          
-
-test_api.py .....                                                                                    [100%]
-
-============================================ 5 passed in 0.28s =============================================
+    
