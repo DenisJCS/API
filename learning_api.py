@@ -691,4 +691,90 @@ def init_db():
         conn.commit()
     
 
+@app.get("/debug/create-test-user")
+def create_test_user():
+    """Create test user to fix problem"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
 
+            # Will check if tablets is exists
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='user'")
+            if not cursor.fetchone():
+                #Will create table if it doesn't exist
+                init_user_db()
+             # Создаем тестового пользователя
+            hashed_password = pwd_context.hash("testpassword123")
+            
+            # Проверяем существует ли пользователь
+            cursor.execute("SELECT * FROM users WHERE username = ?", ("testuser",))
+            if cursor.fetchone():
+                return {"message": "Пользователь testuser уже существует"}
+            
+            cursor.execute(
+                "INSERT INTO users (username, email, full_name, hashed_password, disabled) VALUES (?, ?, ?, ?, ?)",
+                ("testuser", "test@example.com", "Test User", hashed_password, False)
+            )
+            conn.commit()
+            
+            return {
+                "message": "Тестовый пользователь создан:",
+                "username": "testuser",
+                "password": "testpassword123",
+                "status": "готов к использованию"
+            }
+    except Exception as e:
+        return {"error": str(e), "type": type(e).__name__}
+    
+@app.get("/debug/check-auth")
+def check_auth_setup():
+    """Проверяет настройки аутентификации и доступность пользователей"""
+    try:
+        # Проверяем существование таблицы пользователей
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
+            tables = cursor.fetchone()
+            
+            # Проверяем пользователей в базе
+            cursor.execute("SELECT username, email, hashed_password FROM users")
+            users = cursor.fetchall()
+            
+            # Проверяем правильность получения пользователя через функцию
+            test_user = get_user("testuser")
+            
+            return {
+                "tables_exist": tables is not None,
+                "users_count": len(users),
+                "users": [{"username": user[0], "email": user[1]} for user in users],
+                "get_user_works": test_user is not None,
+                "user_from_function": {
+                    "username": test_user.username if test_user else None,
+                    "email": test_user.email if test_user else None
+                } if test_user else None
+            }
+    except Exception as e:
+        return {"error": str(e), "type": type(e).__name__}
+    
+
+def get_user(username: str) -> Optional[UserInDB]:
+    """Получить пользователя из базы данных"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT id, username, email, full_name, hashed_password, disabled FROM users WHERE username = ?', (username,))
+            user = cursor.fetchone()
+            
+            if user:
+                return UserInDB(
+                    username=user[1],
+                    email=user[2], 
+                    full_name=user[3],
+                    hashed_password=user[4],
+                    disabled=bool(user[5]) if user[5] is not None else None
+                )
+            return None
+    except Exception as e:
+        print(f"Ошибка при получении пользователя: {str(e)}")
+        return None
+    
